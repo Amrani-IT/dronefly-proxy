@@ -7,3 +7,17 @@ services:
       - "8092:8092"
     environment:
       - PORT=8092
+
+  # Self-hosted map tiles. Serves an OpenMapTiles-format .mbtiles (build it once
+  # with ./build-tiles.sh) using TileServer GL's bundled styles, fonts and sprites.
+  # On the same default network (dronefly-proxy_default) as the proxy + cloudflared,
+  # so the existing tunnel can route tiles.dronefly.uk -> dronefly-tiles:8093.
+  dronefly-tiles:
+    image: maptiler/tileserver-gl:latest
+    container_name: dronefly-tiles
+    restart: unless-stopped
+    command: ["--file", "gb.mbtiles", "--port", "8093"]
+    ports:
+      - "8093:8093"
+    volumes:
+      - ./tiles:/data

@@ -7,6 +7,9 @@ services:
       - "8092:8092"
     environment:
       - PORT=8092
+      # Optional: free key from openaip.net enables the /airspace zones endpoint.
+      # Put OPENAIP_KEY=... in a .env file next to this compose file.
+      - OPENAIP_KEY=${OPENAIP_KEY:-}
 
   # Self-hosted map tiles. Serves an OpenMapTiles-format .mbtiles (build it once
   # with ./build-tiles.sh) using TileServer GL's bundled styles, fonts and sprites.

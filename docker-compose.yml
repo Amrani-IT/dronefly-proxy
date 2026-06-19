@@ -1,0 +1,9 @@
+services:
+  dronefly-proxy:
+    build: .
+    container_name: dronefly-proxy
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    environment:
+      - PORT=8092

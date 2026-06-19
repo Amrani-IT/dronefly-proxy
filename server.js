@@ -103,6 +103,14 @@ async function getAirspace(lat, lon, dist) {
     });
     const d = await r.json();
     const items = d.items || d || [];
+    // OpenAIP vertical limit -> approximate feet + a readable label. unit 6 = FL.
+    const toFt = lim => lim ? (lim.unit === 6 ? (lim.value || 0) * 100 : (lim.value || 0)) : null;
+    const label = lim => {
+      if (!lim) return '—';
+      if (lim.unit === 6) return 'FL' + lim.value;
+      if (!lim.value) return 'SFC';
+      return lim.value + 'ft' + (lim.referenceDatum === 0 ? ' AGL' : '');
+    };
     out = {
       airspaces: items.map(a => {
         const g = a.geometry;
@@ -111,7 +119,8 @@ async function getAirspace(lat, lon, dist) {
         return {
           name: a.name || 'Airspace',
           icaoClass: a.icaoClass, type: a.type,
-          lower: a.lowerLimit && a.lowerLimit.value, upper: a.upperLimit && a.upperLimit.value,
+          lowerFt: toFt(a.lowerLimit), upperFt: toFt(a.upperLimit),
+          lowerLabel: label(a.lowerLimit), upperLabel: label(a.upperLimit),
           ring
         };
       }).filter(Boolean)

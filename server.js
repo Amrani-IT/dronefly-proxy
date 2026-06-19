@@ -66,6 +66,26 @@ async function getAirports(lat, lon, radius) {
   return out;
 }
 
+async function getTLE() {
+  const c = getCached('tle'); if (c) return c;
+  let out = { sats: [] };
+  try {
+    const r = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=gnss&FORMAT=tle', { headers: { 'User-Agent': UA } });
+    const txt = await r.text();
+    const lines = txt.split(/\r?\n/).filter(l => l.trim().length);
+    const sats = [];
+    for (let i = 0; i + 2 < lines.length + 1; i += 3) {
+      const name = (lines[i] || '').trim();
+      const l1 = lines[i + 1] || '';
+      const l2 = lines[i + 2] || '';
+      if (l1.startsWith('1 ') && l2.startsWith('2 ')) sats.push({ name, l1, l2 });
+    }
+    if (sats.length) out = { sats };
+  } catch (_) {}
+  setCached('tle', out, 21600000); // 6h
+  return out;
+}
+
 async function getKp() {
   const c = getCached('kp'); if (c) return c;
   let out = { kp: null };
@@ -93,6 +113,7 @@ http.createServer(async (req, res) => {
   try {
     if (u.pathname === '/health') return send(res, 200, { ok: true, time: new Date().toISOString() });
     if (u.pathname === '/kp') return send(res, 200, await getKp());
+    if (u.pathname === '/tle') return send(res, 200, await getTLE());
     if (u.pathname === '/traffic') {
       if (isNaN(lat) || isNaN(lon)) return send(res, 400, { error: 'lat/lon required' });
       return send(res, 200, await getTraffic(lat, lon));

@@ -86,6 +86,41 @@ async function getTLE() {
   return out;
 }
 
+// Controlled airspace / restricted zones from OpenAIP. Needs OPENAIP_KEY in the
+// environment (free key from openaip.net). Returns simplified polygons.
+async function getAirspace(lat, lon, dist) {
+  const key = process.env.OPENAIP_KEY;
+  if (!key) return { airspaces: [], note: 'no_key' };
+  const ck = `as:${lat.toFixed(2)},${lon.toFixed(2)},${dist}`;
+  const c = getCached(ck); if (c) return c;
+  const dLat = dist / 111000;
+  const dLon = dist / (111000 * Math.cos(lat * Math.PI / 180) || 1);
+  const bbox = `${(lon - dLon).toFixed(4)},${(lat - dLat).toFixed(4)},${(lon + dLon).toFixed(4)},${(lat + dLat).toFixed(4)}`;
+  let out = { airspaces: [] };
+  try {
+    const r = await fetch(`https://api.core.openaip.net/api/airspaces?bbox=${bbox}&limit=200`, {
+      headers: { 'x-openaip-api-key': key, 'User-Agent': UA }
+    });
+    const d = await r.json();
+    const items = d.items || d || [];
+    out = {
+      airspaces: items.map(a => {
+        const g = a.geometry;
+        if (!g || g.type !== 'Polygon' || !g.coordinates || !g.coordinates[0]) return null;
+        const ring = g.coordinates[0].map(p => [p[1], p[0]]); // [lat,lon]
+        return {
+          name: a.name || 'Airspace',
+          icaoClass: a.icaoClass, type: a.type,
+          lower: a.lowerLimit && a.lowerLimit.value, upper: a.upperLimit && a.upperLimit.value,
+          ring
+        };
+      }).filter(Boolean)
+    };
+  } catch (_) {}
+  setCached(ck, out, 3600000); // 1h
+  return out;
+}
+
 async function getKp() {
   const c = getCached('kp'); if (c) return c;
   let out = { kp: null };
@@ -114,6 +149,11 @@ http.createServer(async (req, res) => {
     if (u.pathname === '/health') return send(res, 200, { ok: true, time: new Date().toISOString() });
     if (u.pathname === '/kp') return send(res, 200, await getKp());
     if (u.pathname === '/tle') return send(res, 200, await getTLE());
+    if (u.pathname === '/airspace') {
+      if (isNaN(lat) || isNaN(lon)) return send(res, 400, { error: 'lat/lon required' });
+      const dist = Math.min(parseInt(u.searchParams.get('dist') || '15000', 10), 40000);
+      return send(res, 200, await getAirspace(lat, lon, dist));
+    }
     if (u.pathname === '/traffic') {
       if (isNaN(lat) || isNaN(lon)) return send(res, 400, { error: 'lat/lon required' });
       return send(res, 200, await getTraffic(lat, lon));
